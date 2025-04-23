@@ -1,0 +1,18 @@
+Ejecutar 
+gcc prethread-WebServer.c -o prethread-WebServer -lpthread
+./prethread-WebServer -n 4 -w /home/cami/www -p 8080
+
+Cliente terminal para probar
+HEAD curl -I http://localhost:8080/index.html  
+GET curl http://localhost:8080/index.html   
+POST curl -X POST -d "nombre=Cami" http://localhost:8080/test
+PUT curl -X PUT -d "Hola mundo PUT" http://localhost:8080/archivo_put.txt
+DELETE curl -X DELETE http://localhost:8080/archivo_put.txt
+
+Importante
+crear carpeta www
+archivos index.html y otro.html 
+
+saber que puerto esta usando
+sudo lsof -i :8080
+
