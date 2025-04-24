@@ -11,6 +11,18 @@ gcc HTTPclient.c -o HTTPclient -lcurl
 ./HTTPclient -h localhost:8080 DELETE /archivo.txt
 ./HTTPclient -h localhost:8080 HEAD /index.html
 
+Descargar
+./HTTPclient -h localhost:8080 GET /archivo.txt -o descargado.txt
+
+
+Ejecutar stress
+chmod +x stress.py
+./stress.py -n 20 ./HTTPclient -h localhost:8080 GET /index.html
+./stress.py -n 20 ./HTTPclient -h localhost:8080 GET /index.html
+./stress.py -n 20 ./HTTPclient -h localhost:8080 POST /form -d "nombre=Cami&mensaje=Hola"
+./stress.py -n 20 ./HTTPclient -h localhost:8080 PUT /archivo_put.txt -d "contenido generado por stress"
+./stress.py -n 20 ./HTTPclient -h localhost:8080 DELETE /borrar.txt
+./stress.py -n 20 ./HTTPclient -h localhost:8080 HEAD /index.html
 
 Cliente terminal para probar
 HEAD curl -I http://localhost:8080/index.html  

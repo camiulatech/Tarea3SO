@@ -13,8 +13,12 @@
 #define BUFFER_SIZE 4096
 
 int server_fd;
-int port = DEFAULT_PORT; 
-char *root_dir = "."; 
+int port = DEFAULT_PORT;
+char *root_dir = ".";
+
+int num_threads = 4;
+int clientes_activos = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *handle_client(void *arg) {
     struct sockaddr_in client_addr;
@@ -23,11 +27,31 @@ void *handle_client(void *arg) {
 
     while (1) {
         int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("accept failed");
+            continue;
+        }
+
+        // Verificar si hay hilos disponibles
+        pthread_mutex_lock(&lock);
+        if (clientes_activos >= num_threads) {
+            pthread_mutex_unlock(&lock);
+            char msg[] =
+                "HTTP/1.1 503 Service Unavailable\r\n"
+                "Content-Type: text/plain\r\n"
+                "Connection: close\r\n\r\n"
+                "Servidor ocupado. Se ha sobrepasado el número de clientes que pueden ser atendidos.\n";
+            write(client_fd, msg, strlen(msg));
+            printf("%s\n", msg); // Imprimir también en consola
+            close(client_fd);
+            continue;
+        }
+        clientes_activos++;
+        pthread_mutex_unlock(&lock);
+
         // Verificar si el puerto corresponde a HTTP
         if (port != 80 && port != 8080){
             char protocolo[64];
-            // menor a 1024 es considerado puerto inseguro por eso 8080 REVISAR
-
             switch (port) {
                 case 21: strcpy(protocolo, "FTP"); break;
                 case 22: strcpy(protocolo, "SSH"); break;
@@ -47,6 +71,7 @@ void *handle_client(void *arg) {
                 protocolo);
 
             write(client_fd, respuesta, strlen(respuesta));
+            printf("%s\n", respuesta);
             close(client_fd);
             continue;
         }
@@ -59,11 +84,9 @@ void *handle_client(void *arg) {
         char method[8], path[1024];
         sscanf(buffer, "%s %s", method, path);
 
-        // Quitar el "/" inicial
         char *filename = path + 1;
         if (strlen(filename) == 0) filename = "index.html";
 
-        // Ruta completa al archivo
         char fullpath[2048];
         snprintf(fullpath, sizeof(fullpath), "%s/%s", root_dir, filename);
 
@@ -76,12 +99,14 @@ void *handle_client(void *arg) {
                     "Connection: close\r\n\r\n"
                     "Archivo no encontrado";
                 write(client_fd, error_msg, strlen(error_msg));
+                printf("%s\n", error_msg);
             } else {
                 char header[] =
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/html\r\n"
                     "Connection: close\r\n\r\n";
                 write(client_fd, header, strlen(header));
+                printf("%s\n", header);
 
                 if (strcmp(method, "GET") == 0) {
                     int bytes;
@@ -89,7 +114,6 @@ void *handle_client(void *arg) {
                         write(client_fd, buffer, bytes);
                     }
                 }
-
                 close(file_fd);
             }
 
@@ -100,6 +124,7 @@ void *handle_client(void *arg) {
                 "Connection: close\r\n\r\n"
                 "Datos recibidos correctamente (simulado)";
             write(client_fd, response, strlen(response));
+            printf("%s\n", response);
 
         } else if (strcmp(method, "PUT") == 0) {
             int file_fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -110,6 +135,7 @@ void *handle_client(void *arg) {
                     "Connection: close\r\n\r\n"
                     "No se pudo crear el archivo";
                 write(client_fd, error_msg, strlen(error_msg));
+                printf("%s\n", error_msg);
             } else {
                 char *body = strstr(buffer, "\r\n\r\n");
                 if (body) {
@@ -117,13 +143,13 @@ void *handle_client(void *arg) {
                     write(file_fd, body, strlen(body));
                 }
                 close(file_fd);
-
                 char response[] =
                     "HTTP/1.1 201 Created\r\n"
                     "Content-Type: text/plain\r\n"
                     "Connection: close\r\n\r\n"
                     "Archivo creado exitosamente";
                 write(client_fd, response, strlen(response));
+                printf("%s\n", response);
             }
 
         } else if (strcmp(method, "DELETE") == 0) {
@@ -134,6 +160,7 @@ void *handle_client(void *arg) {
                     "Connection: close\r\n\r\n"
                     "Archivo eliminado exitosamente";
                 write(client_fd, response, strlen(response));
+                printf("%s\n", response);
             } else {
                 char error_msg[] =
                     "HTTP/1.1 404 Not Found\r\n"
@@ -141,6 +168,7 @@ void *handle_client(void *arg) {
                     "Connection: close\r\n\r\n"
                     "No se pudo eliminar el archivo";
                 write(client_fd, error_msg, strlen(error_msg));
+                printf("%s\n", error_msg);
             }
 
         } else {
@@ -150,33 +178,31 @@ void *handle_client(void *arg) {
                 "Connection: close\r\n\r\n"
                 "Método no soportado";
             write(client_fd, not_implemented, strlen(not_implemented));
+            printf("%s\n", not_implemented);
         }
 
         close(client_fd);
+
+        pthread_mutex_lock(&lock);
+        clientes_activos--;
+        pthread_mutex_unlock(&lock);
     }
 
     return NULL;
 }
 
-
-
 int main(int argc, char *argv[]) {
-    int num_threads = 4;
-
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-n") == 0 && i + 1 < argc) {
             num_threads = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc) {
             root_dir = argv[++i];
-        }
-        else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+        } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
             port = atoi(argv[++i]);
         }
-
     }
 
     struct sockaddr_in server_addr;
-
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == 0) {
         perror("socket failed");

@@ -4,13 +4,20 @@ import argparse
 import subprocess
 import threading
 
-def ejecutar_cliente(comando):
+def ejecutar_cliente(comando, resultados, idx):
     try:
-        print(f"[DEBUG] Ejecutando: {' '.join(comando)}")
-        result = subprocess.run(' '.join(comando), shell=True)
-        print(f"[DEBUG] Proceso finalizó con código: {result.returncode}")
+        result = subprocess.run(' '.join(comando), shell=True, capture_output=True, text=True)
+        salida = result.stdout + result.stderr
+
+        if "503" in salida:
+            resultados[idx] = "503"
+        elif result.returncode == 0:
+            resultados[idx] = "OK"
+        else:
+            resultados[idx] = "ERROR"
+
     except Exception as e:
-        print(f"[ERROR] al ejecutar: {e}")
+        resultados[idx] = "ERROR"
 
 def main():
     parser = argparse.ArgumentParser(description="Stress test para HTTPClient")
@@ -23,18 +30,27 @@ def main():
         print("Debes especificar un comando para ejecutar con el cliente HTTP.")
         return
 
-    print(f"🔥 Lanzando {args.n} hilos para: {' '.join(args.comando)}\n")
+    print(f"Lanzando {args.n} hilos para: {' '.join(args.comando)}\n")
 
     hilos = []
-    for _ in range(args.n):
-        hilo = threading.Thread(target=ejecutar_cliente, args=(args.comando,))
+    resultados = [None] * args.n
+
+    for i in range(args.n):
+        hilo = threading.Thread(target=ejecutar_cliente, args=(args.comando, resultados, i))
         hilo.start()
         hilos.append(hilo)
 
     for hilo in hilos:
         hilo.join()
 
-    print("\n✅ Finalizó el stress test.")
+    ok_count = resultados.count("OK")
+    rej_count = resultados.count("503")
+    err_count = resultados.count("ERROR")
+
+    print("\nFinalizó el stress test.")
+    print(f"Atendidos correctamente: {ok_count}")
+    print(f"Rechazados (503): {rej_count}")
+    print(f"Otros errores: {err_count}")
 
 if __name__ == "__main__":
     main()
