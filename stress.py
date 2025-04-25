@@ -11,7 +11,7 @@ def ejecutar_cliente(comando, resultados, idx):
         print(f"Hilo {idx}: {salida}")
         if "503" in salida:
             resultados[idx] = "503"
-        elif "200" in salida:
+        elif "200" or "201" in salida:
             resultados[idx] = "OK"
         else:
             resultados[idx] = "ERROR"
@@ -51,8 +51,6 @@ def main():
     print(f"Atendidos correctamente: {ok_count}")
     print(f"Rechazados (503): {rej_count}")
     print(f"Otros errores: {err_count}")
-
-    print(resultados)
 
 if __name__ == "__main__":
     main()
