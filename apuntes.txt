@@ -23,6 +23,7 @@ chmod +x stress.py
 ./stress.py -n 20 ./HTTPclient -h localhost:8080 PUT /archivo_put.txt -d "contenido generado por stress"
 ./stress.py -n 20 ./HTTPclient -h localhost:8080 DELETE /borrar.txt
 ./stress.py -n 20 ./HTTPclient -h localhost:8080 HEAD /index.html
+./stress.py -n 20 ./HTTPclient -h localhost:8080 GET /Pokemon.xci
 
 Cliente terminal para probar
 HEAD curl -I http://localhost:8080/index.html  

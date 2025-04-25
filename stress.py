@@ -8,10 +8,10 @@ def ejecutar_cliente(comando, resultados, idx):
     try:
         result = subprocess.run(' '.join(comando), shell=True, capture_output=True, text=True)
         salida = result.stdout + result.stderr
-
+        print(f"Hilo {idx}: {salida}")
         if "503" in salida:
             resultados[idx] = "503"
-        elif result.returncode == 0:
+        elif "200" in salida:
             resultados[idx] = "OK"
         else:
             resultados[idx] = "ERROR"
@@ -51,6 +51,8 @@ def main():
     print(f"Atendidos correctamente: {ok_count}")
     print(f"Rechazados (503): {rej_count}")
     print(f"Otros errores: {err_count}")
+
+    print(resultados)
 
 if __name__ == "__main__":
     main()

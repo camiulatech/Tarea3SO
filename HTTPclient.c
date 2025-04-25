@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
                 printf("No se pudo guardar el archivo en '%s'\n", output_file);
             }
         } else if (chunk.response && chunk.size > 0) {
-            printf("Respuesta del servidor:\n%s\n", chunk.response);
+            //printf("Respuesta del servidor:\n%s\n", chunk.response);
         }
     } else {
         fprintf(stderr, "Error en curl: %s\n", curl_easy_strerror(res));
