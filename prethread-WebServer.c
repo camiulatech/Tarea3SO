@@ -78,7 +78,7 @@ void *handle_client(void *arg) {
 
         memset(buffer, 0, BUFFER_SIZE);
         read(client_fd, buffer, BUFFER_SIZE);
-        printf("Solicitud:\n%s\n", buffer);
+        printf("Solicitud: %s\n", buffer);
 
         // Extraer método y ruta
         char method[8], path[1024];
@@ -118,13 +118,18 @@ void *handle_client(void *arg) {
             }
 
         } else if (strcmp(method, "POST") == 0) {
+            char *body = strstr(buffer, "\r\n\r\n");
+            if (body) {
+                body += 4;
+            }
+
             char response[] =
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
                 "Connection: close\r\n\r\n"
-                "Datos recibidos correctamente (simulado)";
+                "Datos recibidos correctamente:";
             write(client_fd, response, strlen(response));
-            printf("%s\n", response);
+            printf("%s %s\n", response, body);
 
         } else if (strcmp(method, "PUT") == 0) {
             int file_fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);

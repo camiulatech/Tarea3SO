@@ -82,6 +82,7 @@ int main(int argc, char *argv[]) {
         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     } else if (strcmp(method, "GET") != 0) {
         fprintf(stderr, "Método HTTP no soportado: %s\n", method);
+        fprintf(stderr, "Métodos válidos: GET, POST, PUT, DELETE, HEAD\n");
         return 1;
     }
 
