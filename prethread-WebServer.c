@@ -53,12 +53,18 @@ void *handle_client(void *arg) {
         if (port != 80 && port != 8080){
             char protocolo[64];
             switch (port) {
-                case 21: strcpy(protocolo, "FTP"); break;
-                case 22: strcpy(protocolo, "SSH"); break;
-                case 25: strcpy(protocolo, "SMTP"); break;
-                case 53: strcpy(protocolo, "DNS"); break;
-                case 23: strcpy(protocolo, "TELNET"); break;
-                case 161: strcpy(protocolo, "SNMP"); break;
+                case 21: 
+                case 2121: strcpy(protocolo, "FTP"); break;
+                case 22: 
+                case 2222: strcpy(protocolo, "SSH"); break;
+                case 25: 
+                case 2525: strcpy(protocolo, "SMTP"); break;
+                case 53: 
+                case 5353: strcpy(protocolo, "DNS"); break;
+                case 23: 
+                case 2323: strcpy(protocolo, "TELNET"); break;
+                case 161: 
+                case 16161: strcpy(protocolo, "SNMP"); break;
                 default: strcpy(protocolo, "Desconocido"); break;
             }
 
