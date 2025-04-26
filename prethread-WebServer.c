@@ -196,13 +196,14 @@ void *handle_client(void *arg) {
                 body += 4;
             }
 
-            char response[] =
+            char response[256 + strlen(body)];
+            snprintf(response, sizeof(response),
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
                 "Connection: close\r\n\r\n"
-                "Datos recibidos correctamente:";
+                "Datos recibidos correctamente: %s", body);
             write(client_fd, response, strlen(response));
-            printf("%s %s\n", response, body);
+            printf("%s\n", response);
 
         } else if (strcmp(method, "PUT") == 0) {
             int file_fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
