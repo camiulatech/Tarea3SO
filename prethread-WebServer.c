@@ -176,9 +176,8 @@ void *handle_client(void *arg) {
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
-                guardar_body_binario(client_fd, file_fd, buffer, BUFFER_SIZE);
+                guardar_body_binario(client_fd, file_fd, buffer, strlen(buffer));
                 close(file_fd);
-        
                 char response[] =
                     "HTTP/1.1 201 Created\r\n"
                     "Content-Type: text/plain\r\n"
@@ -187,6 +186,7 @@ void *handle_client(void *arg) {
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
             }        
+
         } else if (strcmp(method, "DELETE") == 0) {
             if (unlink(fullpath) == 0) {
                 char response[] =

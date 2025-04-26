@@ -39,6 +39,8 @@ int main(int argc, char *argv[]) {
     char *path = NULL;
     char *data = NULL;
     char *output_file = NULL;
+    FILE *fp = NULL;
+    long filesize = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 && i + 1 < argc) {
@@ -77,9 +79,33 @@ int main(int argc, char *argv[]) {
         if (data)
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
     } else if (strcmp(method, "PUT") == 0) {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
-        if (data)
+        if (data) {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+        } else if (file_path) {
+            fp = fopen(file_path, "rb");
+            if (!fp) {
+                fprintf(stderr, "No se pudo abrir el archivo '%s'\n", file_path);
+                curl_easy_cleanup(curl);
+                return 1;
+            }
+    
+            fseek(fp, 0L, SEEK_END);
+            filesize = ftell(fp);
+            rewind(fp);
+    
+            curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+            curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+            curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)filesize);
+            // Opcional: indicar que es binario
+            struct curl_slist *headers = NULL;
+            headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        } else {
+            fprintf(stderr, "PUT requiere -d o -f.\n");
+            curl_easy_cleanup(curl);
+            return 1;
+        }    
     } else if (strcmp(method, "DELETE") == 0) {
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     } else if (strcmp(method, "HEAD") == 0) {
@@ -89,27 +115,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Métodos válidos: GET, POST, PUT, DELETE, HEAD\n");
         return 1;
     }
-
-    FILE *fp = NULL;
-    long filesize = 0;
-
-    if ((strcmp(method, "PUT") == 0 || strcmp(method, "POST") == 0) && file_path) {
-        fp = fopen(file_path, "rb");
-        if (!fp) {
-            fprintf(stderr, "No se pudo abrir el archivo '%s'\n", file_path);
-            curl_easy_cleanup(curl);
-            return 1;
-        }
-
-        fseek(fp, 0L, SEEK_END);
-        filesize = ftell(fp);
-        rewind(fp);
-
-        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-        curl_easy_setopt(curl, CURLOPT_READDATA, fp);
-        curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)filesize);
-    }
-
 
     CURLcode res = curl_easy_perform(curl);
     if (fp) {
