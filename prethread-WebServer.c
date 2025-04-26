@@ -20,6 +20,34 @@ int num_threads = 4;
 int clientes_activos = 0;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
+void guardar_body_binario(int client_fd, int file_fd, char *cabecera, int cabecera_len) {
+    int content_length = 0;
+    char *len_ptr = strcasestr(cabecera, "Content-Length:");
+    if (len_ptr) {
+        sscanf(len_ptr, "Content-Length: %d", &content_length);
+    }
+
+    char *body = strstr(cabecera, "\r\n\r\n");
+    if (!body || content_length <= 0) return;
+
+    body += 4;
+    int header_bytes = body - cabecera;
+    int body_en_buffer = cabecera_len - header_bytes;
+
+    // Escribimos solo lo que ya está en el buffer
+    write(file_fd, body, body_en_buffer);
+
+    // Leer el resto
+    int remaining = content_length - body_en_buffer;
+    char temp_buffer[BUFFER_SIZE];
+    while (remaining > 0) {
+        int bytes = read(client_fd, temp_buffer, (remaining < BUFFER_SIZE) ? remaining : BUFFER_SIZE);
+        if (bytes <= 0) break;
+        write(file_fd, temp_buffer, bytes);
+        remaining -= bytes;
+    }
+}
+
 void *handle_client(void *arg) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -148,12 +176,9 @@ void *handle_client(void *arg) {
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
-                char *body = strstr(buffer, "\r\n\r\n");
-                if (body) {
-                    body += 4;
-                    write(file_fd, body, strlen(body));
-                }
+                guardar_body_binario(client_fd, file_fd, buffer, BUFFER_SIZE);
                 close(file_fd);
+        
                 char response[] =
                     "HTTP/1.1 201 Created\r\n"
                     "Content-Type: text/plain\r\n"
@@ -161,8 +186,7 @@ void *handle_client(void *arg) {
                     "Archivo creado exitosamente";
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
-            }
-
+            }        
         } else if (strcmp(method, "DELETE") == 0) {
             if (unlink(fullpath) == 0) {
                 char response[] =

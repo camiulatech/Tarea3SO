@@ -7,6 +7,7 @@ gcc HTTPclient.c -o HTTPclient -lcurl
 
 ./HTTPclient -h localhost:8080 GET /index.html
 ./HTTPclient -h localhost:8080 POST /nuevo.txt -d "contenido de prueba"
+./HTTPclient -h localhost:8080 POST /nuevo.jpg -f hola.jpg
 ./HTTPclient -h localhost:8080 PUT /archivo.txt -d "nuevo contenido"
 ./HTTPclient -h localhost:8080 DELETE /archivo.txt
 ./HTTPclient -h localhost:8080 HEAD /index.html

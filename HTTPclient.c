@@ -29,6 +29,8 @@ size_t write_callback(void *data, size_t size, size_t nmemb, void *userp) {
     return realsize;
 }
 
+char *file_path = NULL;
+
 int main(int argc, char *argv[]) {
     if (argc < 5) uso();
 
@@ -49,7 +51,9 @@ int main(int argc, char *argv[]) {
             data = argv[++i];
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             output_file = argv[++i];
-        }
+        } else if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
+            file_path = argv[++i];
+        }        
     }
 
     if (!host || !method || !path) uso();
@@ -86,7 +90,36 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    FILE *fp = NULL;
+    long filesize = 0;
+
+    if ((strcmp(method, "PUT") == 0 || strcmp(method, "POST") == 0) && file_path) {
+        fp = fopen(file_path, "rb");
+        if (!fp) {
+            fprintf(stderr, "No se pudo abrir el archivo '%s'\n", file_path);
+            curl_easy_cleanup(curl);
+            return 1;
+        }
+
+        fseek(fp, 0L, SEEK_END);
+        filesize = ftell(fp);
+        rewind(fp);
+
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)filesize);
+    }
+
+
     CURLcode res = curl_easy_perform(curl);
+    if (fp) {
+        fclose(fp);
+    }    
+    if (res != CURLE_OK) {
+        fprintf(stderr, "Error en curl: %s\n", curl_easy_strerror(res));
+        return 1;
+    }
+
     if (res == CURLE_OK) {
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
@@ -102,7 +135,11 @@ int main(int argc, char *argv[]) {
                 printf("No se pudo guardar el archivo en '%s'\n", output_file);
             }
         } else if (chunk.response && chunk.size > 0) {
-            //printf("Respuesta del servidor:\n%s\n", chunk.response);
+            if (chunk.size < 10000) {
+                printf("Respuesta del servidor:\n%s\n", chunk.response);
+            } else {
+                printf("Archivo recibido (%.2f MB), no se imprime por tamaño.\n",
+                       chunk.size / (1024.0 * 1024.0));
         }
     } else {
         fprintf(stderr, "Error en curl: %s\n", curl_easy_strerror(res));
