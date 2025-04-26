@@ -148,4 +148,5 @@ int main(int argc, char *argv[]) {
     free(chunk.response);
     curl_easy_cleanup(curl);
     return 0;
+    }
 }
