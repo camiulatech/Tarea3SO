@@ -20,6 +20,41 @@ int num_threads = 4;
 int clientes_activos = 0;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
+const char* obtener_content_type(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if (!ext) return "text/plain";
+
+    ext++;
+    if (strcasecmp(ext, "html") == 0 || strcasecmp(ext, "htm") == 0) return "text/html";
+    if (strcasecmp(ext, "txt") == 0) return "text/plain";
+    if (strcasecmp(ext, "jpg") == 0 || strcasecmp(ext, "jpeg") == 0) return "image/jpeg";
+    if (strcasecmp(ext, "png") == 0) return "image/png";
+    if (strcasecmp(ext, "gif") == 0) return "image/gif";
+    if (strcasecmp(ext, "css") == 0) return "text/css";
+    if (strcasecmp(ext, "js") == 0) return "application/javascript";
+    if (strcasecmp(ext, "json") == 0) return "application/json";
+    if (strcasecmp(ext, "pdf") == 0) return "application/pdf";
+    if (strcasecmp(ext, "zip") == 0) return "application/zip";
+    if (strcasecmp(ext, "xci") == 0) return "application/octet-stream";
+    if (strcasecmp(ext, "pdf") == 0) return "application/pdf";
+    if (strcasecmp(ext, "xml") == 0) return "application/xml";
+    if (strcasecmp(ext, "mp4") == 0) return "video/mp4";
+    if (strcasecmp(ext, "mp3") == 0) return "audio/mpeg";
+    if (strcasecmp(ext, "wav") == 0) return "audio/wav";
+    if (strcasecmp(ext, "avi") == 0) return "video/x-msvideo";
+    if (strcasecmp(ext, "flv") == 0) return "video/x-flv";
+    if (strcasecmp(ext, "mkv") == 0) return "video/x-matroska";
+    if (strcasecmp(ext, "svg") == 0) return "image/svg+xml";
+    if (strcasecmp(ext, "ico") == 0) return "image/x-icon";
+    if (strcasecmp(ext, "woff") == 0) return "font/woff";
+    if (strcasecmp(ext, "woff2") == 0) return "font/woff2";
+    if (strcasecmp(ext, "ttf") == 0) return "font/ttf";
+    if (strcasecmp(ext, "otf") == 0) return "font/otf";
+    if (strcasecmp(ext, "eot") == 0) return "font/eot";
+    if (strcasecmp(ext, "csv") == 0) return "text/csv";
+    return "application/octet-stream";
+}
+
 void guardar_body_binario(int client_fd, int file_fd, char *cabecera, int cabecera_len) {
     int content_length = 0;
     char *len_ptr = strcasestr(cabecera, "Content-Length:");
@@ -99,7 +134,6 @@ void *handle_client(void *arg) {
             char respuesta[256];
             snprintf(respuesta, sizeof(respuesta),
                 "HTTP/1.1 501 Not Implemented\r\n"
-                "Content-Type: text/plain\r\n"
                 "Connection: close\r\n\r\n"
                 "Este servidor no implementa el protocolo %s. Solo se admite HTTP/1.1 por el puerto 8080.\n",
                 protocolo);
@@ -124,21 +158,26 @@ void *handle_client(void *arg) {
         char fullpath[2048];
         snprintf(fullpath, sizeof(fullpath), "%s/%s", root_dir, filename);
 
+        const char *content_type = obtener_content_type(filename);
+
         if (strcmp(method, "GET") == 0 || strcmp(method, "HEAD") == 0) {
             int file_fd = open(fullpath, O_RDONLY);
             if (file_fd == -1) {
-                char error_msg[] =
+                char error_msg[256];
+                snprintf(error_msg, sizeof(error_msg),
                     "HTTP/1.1 404 Not Found\r\n"
-                    "Content-Type: text/plain\r\n"
+                    "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo no encontrado";
+                    "Archivo no encontrado", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
-                char header[] =
+                char header[256];
+                snprintf(header, sizeof(header),
                     "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/html\r\n"
-                    "Connection: close\r\n\r\n";
+                    "Content-Type: %s\r\n"
+                    "Connection: close\r\n\r\n",
+                    content_type);
                 write(client_fd, header, strlen(header));
                 printf("%s\n", header);
 
@@ -168,50 +207,55 @@ void *handle_client(void *arg) {
         } else if (strcmp(method, "PUT") == 0) {
             int file_fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (file_fd == -1) {
-                char error_msg[] =
+                char error_msg[256];
+                snprintf(error_msg, sizeof(error_msg),
                     "HTTP/1.1 500 Internal Server Error\r\n"
-                    "Content-Type: text/plain\r\n"
+                    "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "No se pudo crear el archivo";
+                    "No se pudo crear el archivo", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
                 guardar_body_binario(client_fd, file_fd, buffer, strlen(buffer));
                 close(file_fd);
-                char response[] =
+                char response[256];
+                snprintf(response, sizeof(response),
                     "HTTP/1.1 201 Created\r\n"
-                    "Content-Type: text/plain\r\n"
+                    "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo creado exitosamente";
+                    "Archivo creado exitosamente", content_type);
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
             }        
 
         } else if (strcmp(method, "DELETE") == 0) {
             if (unlink(fullpath) == 0) {
-                char response[] =
+                char response[256];
+                snprintf(response, sizeof(response),
                     "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/plain\r\n"
+                    "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo eliminado exitosamente";
+                    "Archivo eliminado exitosamente", content_type);
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
             } else {
-                char error_msg[] =
+                char error_msg[256];
+                snprintf(error_msg, sizeof(error_msg),
                     "HTTP/1.1 404 Not Found\r\n"
-                    "Content-Type: text/plain\r\n"
+                    "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "No se pudo eliminar el archivo";
+                    "No se pudo eliminar el archivo", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             }
 
         } else {
-            char not_implemented[] =
+            char not_implemented[256];
+            snprintf(not_implemented, sizeof(not_implemented),
                 "HTTP/1.1 501 Not Implemented\r\n"
-                "Content-Type: text/plain\r\n"
+                "Content-Type: %s\r\n"
                 "Connection: close\r\n\r\n"
-                "Método no soportado";
+                "Método no soportado", content_type);
             write(client_fd, not_implemented, strlen(not_implemented));
             printf("%s\n", not_implemented);
         }

@@ -29,6 +29,41 @@ size_t write_callback(void *data, size_t size, size_t nmemb, void *userp) {
     return realsize;
 }
 
+const char* obtener_content_type(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if (!ext) return "text/plain";
+
+    ext++; // Saltar el punto
+    if (strcasecmp(ext, "html") == 0 || strcasecmp(ext, "htm") == 0) return "text/html";
+    if (strcasecmp(ext, "txt") == 0) return "text/plain";
+    if (strcasecmp(ext, "jpg") == 0 || strcasecmp(ext, "jpeg") == 0) return "image/jpeg";
+    if (strcasecmp(ext, "png") == 0) return "image/png";
+    if (strcasecmp(ext, "gif") == 0) return "image/gif";
+    if (strcasecmp(ext, "css") == 0) return "text/css";
+    if (strcasecmp(ext, "js") == 0) return "application/javascript";
+    if (strcasecmp(ext, "json") == 0) return "application/json";
+    if (strcasecmp(ext, "pdf") == 0) return "application/pdf";
+    if (strcasecmp(ext, "zip") == 0) return "application/zip";
+    if (strcasecmp(ext, "xci") == 0) return "application/octet-stream";
+    if (strcasecmp(ext, "pdf") == 0) return "application/pdf";
+    if (strcasecmp(ext, "xml") == 0) return "application/xml";
+    if (strcasecmp(ext, "mp4") == 0) return "video/mp4";
+    if (strcasecmp(ext, "mp3") == 0) return "audio/mpeg";
+    if (strcasecmp(ext, "wav") == 0) return "audio/wav";
+    if (strcasecmp(ext, "avi") == 0) return "video/x-msvideo";
+    if (strcasecmp(ext, "flv") == 0) return "video/x-flv";
+    if (strcasecmp(ext, "mkv") == 0) return "video/x-matroska";
+    if (strcasecmp(ext, "svg") == 0) return "image/svg+xml";
+    if (strcasecmp(ext, "ico") == 0) return "image/x-icon";
+    if (strcasecmp(ext, "woff") == 0) return "font/woff";
+    if (strcasecmp(ext, "woff2") == 0) return "font/woff2";
+    if (strcasecmp(ext, "ttf") == 0) return "font/ttf";
+    if (strcasecmp(ext, "otf") == 0) return "font/otf";
+    if (strcasecmp(ext, "eot") == 0) return "font/eot";
+    if (strcasecmp(ext, "csv") == 0) return "text/csv";
+    return "application/octet-stream";
+}
+
 char *file_path = NULL;
 
 int main(int argc, char *argv[]) {
@@ -97,9 +132,11 @@ int main(int argc, char *argv[]) {
             curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
             curl_easy_setopt(curl, CURLOPT_READDATA, fp);
             curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)filesize);
-            // Opcional: indicar que es binario
+
             struct curl_slist *headers = NULL;
-            headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
+            char content_type[256];
+            snprintf(content_type, sizeof(content_type), "Content-Type: %s", obtener_content_type(file_path));
+            headers = curl_slist_append(headers, content_type);
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         } else {
             fprintf(stderr, "PUT requiere -d o -f.\n");
