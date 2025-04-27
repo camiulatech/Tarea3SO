@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
         }        
     }
 
-    if (!host || !method || !path) uso();
+    if (!host || !method || !path) usage();
 
     char url[1024];
     snprintf(url, sizeof(url), "http://%s%s", host, path);
