@@ -3,7 +3,7 @@
 #include <string.h>
 #include <curl/curl.h>
 
-void uso() {
+void usage() {
     printf("Usage: ./HTTPclient -h <host> <method> <path> [-d \"data\"] [-o output_file]\n");
     printf("Example: ./HTTPclient -h localhost:8080 GET /file.txt -o downloaded.txt\n");
     exit(1);
@@ -67,7 +67,7 @@ const char* get_content_type(const char *filename) {
 char *file_path = NULL;
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) uso();
+    if (argc < 5) usage();
 
     char *host = NULL;
     char *method = NULL;
