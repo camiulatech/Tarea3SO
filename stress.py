@@ -4,53 +4,53 @@ import argparse
 import subprocess
 import threading
 
-def ejecutar_cliente(comando, resultados, idx):
+def run_client(command, results, idx):
     try:
-        result = subprocess.run(' '.join(comando), shell=True, capture_output=True, text=True)
-        salida = result.stdout + result.stderr
-        print(f"Hilo {idx}: {salida}")
-        if "503" in salida:
-            resultados[idx] = "503"
-        elif "200" in salida or "201" in salida:
-            resultados[idx] = "OK"
+        result = subprocess.run(' '.join(command), shell=True, capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        print(f"Thread {idx}: {output}")
+        if "503" in output:
+            results[idx] = "503"
+        elif "200" in output or "201" in output:
+            results[idx] = "OK"
         else:
-            resultados[idx] = "ERROR"
+            results[idx] = "ERROR"
 
     except Exception as e:
-        resultados[idx] = "ERROR"
+        results[idx] = "ERROR"
 
 def main():
-    parser = argparse.ArgumentParser(description="Stress test para HTTPClient")
-    parser.add_argument("-n", type=int, required=True, help="Cantidad de hilos")
-    parser.add_argument("comando", nargs=argparse.REMAINDER, help="Comando del cliente HTTP")
+    parser = argparse.ArgumentParser(description="Stress test fot HTTPClient")
+    parser.add_argument("-n", type=int, required=True, help="Number of threads")
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="HTTP client command to execute")
 
     args = parser.parse_args()
 
-    if not args.comando:
-        print("Debes especificar un comando para ejecutar con el cliente HTTP.")
+    if not args.command:
+        print("You must specify a command to run with the HTTP client.")
         return
 
-    print(f"Lanzando {args.n} hilos para: {' '.join(args.comando)}\n")
+    print(f"Launching {args.n} threads for: {' '.join(args.command)}\n")
 
-    hilos = []
-    resultados = [None] * args.n
+    threads = []
+    results = [None] * args.n
 
     for i in range(args.n):
-        hilo = threading.Thread(target=ejecutar_cliente, args=(args.comando, resultados, i))
-        hilo.start()
-        hilos.append(hilo)
+        thread = threading.Thread(target=run_client, args=(args.command, results, i))
+        thread.start()
+        threads.append(thread)
 
-    for hilo in hilos:
-        hilo.join()
+    for thread in threads:
+        thread.join()
 
-    ok_count = resultados.count("OK")
-    rej_count = resultados.count("503")
-    err_count = resultados.count("ERROR")
+    ok_count = results.count("OK")
+    rej_count = results.count("503")
+    err_count = results.count("ERROR")
 
-    print("\nFinalizó el stress test.")
-    print(f"Atendidos correctamente: {ok_count}")
-    print(f"Rechazados (503): {rej_count}")
-    print(f"Otros errores: {err_count}")
+    print("\nStress test completed.")
+    print(f"Successfully served: {ok_count}")
+    print(f"Rejected (503): {rej_count}")
+    print(f"Killed: {err_count}")
 
 if __name__ == "__main__":
     main()

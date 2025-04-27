@@ -4,8 +4,8 @@
 #include <curl/curl.h>
 
 void uso() {
-    printf("Uso: ./HTTPclient -h <host> <metodo> <ruta> [-d \"datos\"] [-o archivo_salida]\n");
-    printf("Ejemplo: ./HTTPclient -h localhost:8080 GET /archivo.txt -o descargado.txt\n");
+    printf("Usage: ./HTTPclient -h <host> <method> <path> [-d \"data\"] [-o output_file]\n");
+    printf("Example: ./HTTPclient -h localhost:8080 GET /file.txt -o downloaded.txt\n");
     exit(1);
 }
 
@@ -29,7 +29,7 @@ size_t write_callback(void *data, size_t size, size_t nmemb, void *userp) {
     return realsize;
 }
 
-const char* obtener_content_type(const char *filename) {
+const char* get_content_type(const char *filename) {
     const char *ext = strrchr(filename, '.');
     if (!ext) return "text/plain";
 
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        fprintf(stderr, "Error al inicializar curl\n");
+        fprintf(stderr, "Failed to initialize curl\n");
         return 1;
     }
 
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
 
             struct curl_slist *headers = NULL;
             char content_type[256];
-            snprintf(content_type, sizeof(content_type), "Content-Type: %s", obtener_content_type(file_path));
+            snprintf(content_type, sizeof(content_type), "Content-Type: %s", get_content_type(file_path));
             headers = curl_slist_append(headers, content_type);
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         } else {
@@ -148,8 +148,8 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(method, "HEAD") == 0) {
         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     } else if (strcmp(method, "GET") != 0) {
-        fprintf(stderr, "Método HTTP no soportado: %s\n", method);
-        fprintf(stderr, "Métodos válidos: GET, POST, PUT, DELETE, HEAD\n");
+        fprintf(stderr, "Unsupported HTTP method: %s\n", method);
+        fprintf(stderr, "Valid methods: GET, POST, PUT, DELETE, HEAD\n");
         return 1;
     }
 
@@ -158,33 +158,33 @@ int main(int argc, char *argv[]) {
         fclose(fp);
     }    
     if (res != CURLE_OK) {
-        fprintf(stderr, "Error en curl: %s\n", curl_easy_strerror(res));
+        fprintf(stderr, "Curl error: %s\n", curl_easy_strerror(res));
         return 1;
     }
 
     if (res == CURLE_OK) {
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        printf("Código HTTP: %ld\n", http_code);
+        printf("HTTP code: %ld\n", http_code);
 
         if (output_file && http_code == 200 && strcmp(method, "GET") == 0) {
             FILE *f = fopen(output_file, "w");
             if (f) {
                 fwrite(chunk.response, 1, chunk.size, f);
                 fclose(f);
-                printf("Archivo guardado en '%s'\n", output_file);
+                printf("File saved to '%s'\n", output_file);
             } else {
-                printf("No se pudo guardar el archivo en '%s'\n", output_file);
+                printf("Could not save the file to '%s'\n", output_file);
             }
         } else if (chunk.response && chunk.size > 0) {
             if (chunk.size < 10000) {
-                printf("Respuesta del servidor:\n%s\n", chunk.response);
+                printf("Server response:\n%s\n", chunk.response);
             } else {
-                printf("Archivo recibido (%.2f MB), no se imprime por tamaño.\n",
+                printf("File received (%.2f MB), not printed due to size.\n",
                        chunk.size / (1024.0 * 1024.0));
         }
     } else {
-        fprintf(stderr, "Error en curl: %s\n", curl_easy_strerror(res));
+        fprintf(stderr, "Curl error: %s\n", curl_easy_strerror(res));
     }
 
     free(chunk.response);

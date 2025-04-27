@@ -1,6 +1,7 @@
 Ejecutar 
 gcc prethread-WebServer.c -o prethread-WebServer -lpthread
 ./prethread-WebServer -n 4 -w /home/cami/www -p 8080
+./prethread-WebServer -n 4 -w /home/ycambro/www -p 8080
 
 Ejecutar cliente
 gcc HTTPclient.c -o HTTPclient -lcurl

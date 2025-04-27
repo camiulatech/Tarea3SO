@@ -17,10 +17,12 @@ int port = DEFAULT_PORT;
 char *root_dir = ".";
 
 int num_threads = 4;
-int clientes_activos = 0;
+int active_clients = 0;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-const char* obtener_content_type(const char *filename) {
+// Función para obtener el tipo de contenido basado en la extensión del archivo
+// Devuelve "text/plain" si no se encuentra la extensión
+const char* get_content_type(const char *filename) {
     const char *ext = strrchr(filename, '.');
     if (!ext) return "text/plain";
 
@@ -55,19 +57,19 @@ const char* obtener_content_type(const char *filename) {
     return "application/octet-stream";
 }
 
-void guardar_body_binario(int client_fd, int file_fd, char *cabecera, int cabecera_len) {
+void save_binary_body(int client_fd, int file_fd, char *header, int header_len) {
     int content_length = 0;
-    char *len_ptr = strcasestr(cabecera, "Content-Length:");
+    char *len_ptr = strcasestr(header, "Content-Length:");
     if (len_ptr) {
         sscanf(len_ptr, "Content-Length: %d", &content_length);
     }
 
-    char *body = strstr(cabecera, "\r\n\r\n");
+    char *body = strstr(header, "\r\n\r\n");
     if (!body || content_length <= 0) return;
 
     body += 4;
-    int header_bytes = body - cabecera;
-    int body_en_buffer = cabecera_len - header_bytes;
+    int header_bytes = body - header;
+    int body_en_buffer = header_len - header_bytes;
 
     // Escribimos solo lo que ya está en el buffer
     write(file_fd, body, body_en_buffer);
@@ -97,56 +99,56 @@ void *handle_client(void *arg) {
 
         // Verificar si hay hilos disponibles
         pthread_mutex_lock(&lock);
-        if (clientes_activos >= num_threads) {
+        if (active_clients >= num_threads) {
             pthread_mutex_unlock(&lock);
             char msg[] =
                 "HTTP/1.1 503 Service Unavailable\r\n"
                 "Content-Type: text/plain\r\n"
                 "Connection: close\r\n\r\n"
-                "Servidor ocupado. Se ha sobrepasado el número de clientes que pueden ser atendidos.\n";
+                "Server busy. Maximum number of clients exceeded.\n";
             write(client_fd, msg, strlen(msg));
             printf("%s\n", msg); // Imprimir también en consola
             close(client_fd);
             continue;
         }
-        clientes_activos++;
+        active_clients++;
         pthread_mutex_unlock(&lock);
 
         // Verificar si el puerto corresponde a HTTP
         if (port != 80 && port != 8080){
-            char protocolo[64];
+            char protocol[64];
             switch (port) {
                 case 21: 
-                case 2121: strcpy(protocolo, "FTP"); break;
+                case 2121: strcpy(protocol, "FTP"); break;
                 case 22: 
-                case 2222: strcpy(protocolo, "SSH"); break;
+                case 2222: strcpy(protocol, "SSH"); break;
                 case 25: 
-                case 2525: strcpy(protocolo, "SMTP"); break;
+                case 2525: strcpy(protocol, "SMTP"); break;
                 case 53: 
-                case 5353: strcpy(protocolo, "DNS"); break;
+                case 5353: strcpy(protocol, "DNS"); break;
                 case 23: 
-                case 2323: strcpy(protocolo, "TELNET"); break;
+                case 2323: strcpy(protocol, "TELNET"); break;
                 case 161: 
-                case 16161: strcpy(protocolo, "SNMP"); break;
-                default: strcpy(protocolo, "Desconocido"); break;
+                case 16161: strcpy(protocol, "SNMP"); break;
+                default: strcpy(protocol, "Desconocido"); break;
             }
 
-            char respuesta[256];
-            snprintf(respuesta, sizeof(respuesta),
+            char response[256];
+            snprintf(response, sizeof(response),
                 "HTTP/1.1 501 Not Implemented\r\n"
                 "Connection: close\r\n\r\n"
-                "Este servidor no implementa el protocolo %s. Solo se admite HTTP/1.1 por el puerto 8080.\n",
-                protocolo);
+                "This server does not implement protocol %s. Only HTTP/1.1 on port 8080 is supported.\n",
+                protocol);
 
-            write(client_fd, respuesta, strlen(respuesta));
-            printf("%s\n", respuesta);
+            write(client_fd, response, strlen(response));
+            printf("%s\n", response);
             close(client_fd);
             continue;
         }
 
         memset(buffer, 0, BUFFER_SIZE);
         read(client_fd, buffer, BUFFER_SIZE);
-        printf("Solicitud: %s\n", buffer);
+        printf("Request: %s\n", buffer);
 
         // Extraer método y ruta
         char method[8], path[1024];
@@ -158,7 +160,7 @@ void *handle_client(void *arg) {
         char fullpath[2048];
         snprintf(fullpath, sizeof(fullpath), "%s/%s", root_dir, filename);
 
-        const char *content_type = obtener_content_type(filename);
+        const char *content_type = get_content_type(filename);
 
         if (strcmp(method, "GET") == 0 || strcmp(method, "HEAD") == 0) {
             int file_fd = open(fullpath, O_RDONLY);
@@ -168,7 +170,7 @@ void *handle_client(void *arg) {
                     "HTTP/1.1 404 Not Found\r\n"
                     "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo no encontrado", content_type);
+                    "File not found", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
@@ -201,7 +203,7 @@ void *handle_client(void *arg) {
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
                 "Connection: close\r\n\r\n"
-                "Datos recibidos correctamente: %s", body);
+                "Data received succesfully: %s", body);
             write(client_fd, response, strlen(response));
             printf("%s\n", response);
 
@@ -213,18 +215,18 @@ void *handle_client(void *arg) {
                     "HTTP/1.1 500 Internal Server Error\r\n"
                     "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "No se pudo crear el archivo", content_type);
+                    "Could not create file", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
-                guardar_body_binario(client_fd, file_fd, buffer, strlen(buffer));
+                save_binary_body(client_fd, file_fd, buffer, strlen(buffer));
                 close(file_fd);
                 char response[256];
                 snprintf(response, sizeof(response),
                     "HTTP/1.1 201 Created\r\n"
                     "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo creado exitosamente", content_type);
+                    "File created successfully", content_type);
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
             }        
@@ -236,7 +238,7 @@ void *handle_client(void *arg) {
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "Archivo eliminado exitosamente", content_type);
+                    "File deleted successfully", content_type);
                 write(client_fd, response, strlen(response));
                 printf("%s\n", response);
             } else {
@@ -245,7 +247,7 @@ void *handle_client(void *arg) {
                     "HTTP/1.1 404 Not Found\r\n"
                     "Content-Type: %s\r\n"
                     "Connection: close\r\n\r\n"
-                    "No se pudo eliminar el archivo", content_type);
+                    "Could not delete the file", content_type);
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             }
@@ -256,7 +258,7 @@ void *handle_client(void *arg) {
                 "HTTP/1.1 501 Not Implemented\r\n"
                 "Content-Type: %s\r\n"
                 "Connection: close\r\n\r\n"
-                "Método no soportado", content_type);
+                "Method not supported", content_type);
             write(client_fd, not_implemented, strlen(not_implemented));
             printf("%s\n", not_implemented);
         }
@@ -264,7 +266,7 @@ void *handle_client(void *arg) {
         close(client_fd);
 
         pthread_mutex_lock(&lock);
-        clientes_activos--;
+        active_clients--;
         pthread_mutex_unlock(&lock);
     }
 
@@ -303,8 +305,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Servidor escuchando en puerto %d con %d hilos...\n", port, num_threads);
-    printf("Sirviendo archivos desde: %s\n", root_dir);
+    printf("Server listening on port %d with %d threads...\n", port, num_threads);
+    printf("Serving files from: %s\n", root_dir);
 
     pthread_t threads[num_threads];
     for (int i = 0; i < num_threads; i++) {
