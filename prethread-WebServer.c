@@ -9,9 +9,11 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+// Definiciones de constantes
 #define DEFAULT_PORT 8080
 #define BUFFER_SIZE 4096
 
+// Variables globales
 int server_fd;
 int port = DEFAULT_PORT;
 char *root_dir = ".";
@@ -21,7 +23,7 @@ int active_clients = 0;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 // Función para obtener el tipo de contenido basado en la extensión del archivo
-// Devuelve "text/plain" si no se encuentra la extensión
+// Asume que es text/plain si no se encuentra la extensión
 const char* get_content_type(const char *filename) {
     const char *ext = strrchr(filename, '.');
     if (!ext) return "text/plain";
@@ -57,21 +59,27 @@ const char* get_content_type(const char *filename) {
     return "application/octet-stream";
 }
 
+// Función para guardar el cuerpo binario de la solicitud POST
+// Lee el cuerpo del mensaje y lo guarda en un archivo
 void save_binary_body(int client_fd, int file_fd, char *header, int header_len) {
     int content_length = 0;
+
+    // Buscar el Content-Length en el encabezado
     char *len_ptr = strcasestr(header, "Content-Length:");
     if (len_ptr) {
         sscanf(len_ptr, "Content-Length: %d", &content_length);
     }
 
+    // Si no se encuentra Content-Length o es menor o igual a 0, no hacemos nada
     char *body = strstr(header, "\r\n\r\n");
     if (!body || content_length <= 0) return;
 
+    // Avanzar el puntero del cuerpo para omitir los encabezados
     body += 4;
     int header_bytes = body - header;
     int body_en_buffer = header_len - header_bytes;
 
-    // Escribimos solo lo que ya está en el buffer
+    // Escribir solo lo que ya está en el buffer
     write(file_fd, body, body_en_buffer);
 
     // Leer el resto
@@ -85,11 +93,15 @@ void save_binary_body(int client_fd, int file_fd, char *header, int header_len) 
     }
 }
 
+// Función para manejar las solicitudes de los clientes, un hilo por cliente
 void *handle_client(void *arg) {
+
+    // Crear un socket para el cliente
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
 
+    // Aceptar conexiones de clientes
     while (1) {
         int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd < 0) {
@@ -97,8 +109,8 @@ void *handle_client(void *arg) {
             continue;
         }
 
-        // Verificar si hay hilos disponibles
-        pthread_mutex_lock(&lock);
+        // Verificar si hay hilos disponibles, en caso contrario, responder con 503
+        pthread_mutex_lock(&lock);                                         // Bloquear el mutex
         if (active_clients >= num_threads) {
             pthread_mutex_unlock(&lock);
             char msg[] =
@@ -111,8 +123,10 @@ void *handle_client(void *arg) {
             close(client_fd);
             continue;
         }
+
+        // Si hay hilos disponibles, aumentar el contador de clientes activos
         active_clients++;
-        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&lock);                                       // Desbloquear el mutex
 
         // Verificar si el puerto corresponde a HTTP
         if (port != 80 && port != 8080){
@@ -133,6 +147,7 @@ void *handle_client(void *arg) {
                 default: strcpy(protocol, "Desconocido"); break;
             }
 
+            // Responder con un mensaje de error en caso de que el puerto no sea HTTP
             char response[256];
             snprintf(response, sizeof(response),
                 "HTTP/1.1 501 Not Implemented\r\n"
@@ -146,6 +161,7 @@ void *handle_client(void *arg) {
             continue;
         }
 
+        // Leer la solicitud del cliente, limpiar el buffer antes de leer
         memset(buffer, 0, BUFFER_SIZE);
         read(client_fd, buffer, BUFFER_SIZE);
         printf("Request: %s\n", buffer);
@@ -154,16 +170,20 @@ void *handle_client(void *arg) {
         char method[8], path[1024];
         sscanf(buffer, "%s %s", method, path);
 
+        // Verifica si se indicó un archivo, sino se usa index.html
         char *filename = path + 1;
         if (strlen(filename) == 0) filename = "index.html";
 
         char fullpath[2048];
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", root_dir, filename);
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", root_dir, filename); // Concatenar el directorio raíz con el nombre del archivo
 
-        const char *content_type = get_content_type(filename);
+        const char *content_type = get_content_type(filename);             // Obtener el tipo de contenido
 
+        // Manejar diferentes métodos HTTP
         if (strcmp(method, "GET") == 0 || strcmp(method, "HEAD") == 0) {
-            int file_fd = open(fullpath, O_RDONLY);
+            int file_fd = open(fullpath, O_RDONLY);                        // Abrir el archivo para lectura
+
+            // Si el archivo no se encuentra, responder con 404
             if (file_fd == -1) {
                 char error_msg[256];
                 snprintf(error_msg, sizeof(error_msg),
@@ -174,6 +194,7 @@ void *handle_client(void *arg) {
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
+                // Si el archivo se encuentra, envia el encabezado de respuesta
                 char header[256];
                 snprintf(header, sizeof(header),
                     "HTTP/1.1 200 OK\r\n"
@@ -183,6 +204,7 @@ void *handle_client(void *arg) {
                 write(client_fd, header, strlen(header));
                 printf("%s\n", header);
 
+                // Si el método es GET, además de lo anterior, leer el archivo y enviarlo al cliente
                 if (strcmp(method, "GET") == 0) {
                     int bytes;
                     while ((bytes = read(file_fd, buffer, BUFFER_SIZE)) > 0) {
@@ -193,11 +215,13 @@ void *handle_client(void *arg) {
             }
 
         } else if (strcmp(method, "POST") == 0) {
+            // Enviar datos al servidor
             char *body = strstr(buffer, "\r\n\r\n");
             if (body) {
                 body += 4;
             }
 
+            // Recibir la información desde el cliente y mostrarla
             char response[256 + strlen(body)];
             snprintf(response, sizeof(response),
                 "HTTP/1.1 200 OK\r\n"
@@ -208,8 +232,11 @@ void *handle_client(void *arg) {
             printf("%s\n", response);
 
         } else if (strcmp(method, "PUT") == 0) {
+            // Crear el archivo en el servidor
             int file_fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
             if (file_fd == -1) {
+                // Si no se puede crear el archivo, responder con 500
                 char error_msg[256];
                 snprintf(error_msg, sizeof(error_msg),
                     "HTTP/1.1 500 Internal Server Error\r\n"
@@ -219,6 +246,7 @@ void *handle_client(void *arg) {
                 write(client_fd, error_msg, strlen(error_msg));
                 printf("%s\n", error_msg);
             } else {
+                // Guardar el cuerpo del mensaje en el archivo, donde el cuerpo es el contenido del archivo
                 save_binary_body(client_fd, file_fd, buffer, strlen(buffer));
                 close(file_fd);
                 char response[256];
@@ -232,6 +260,7 @@ void *handle_client(void *arg) {
             }        
 
         } else if (strcmp(method, "DELETE") == 0) {
+            // Eliminar el archivo del servidor, si se logra eliminar, responder con 200, sino con 404
             if (unlink(fullpath) == 0) {
                 char response[256];
                 snprintf(response, sizeof(response),
@@ -253,6 +282,7 @@ void *handle_client(void *arg) {
             }
 
         } else {
+            // Si el método no es soportado, responder con 501
             char not_implemented[256];
             snprintf(not_implemented, sizeof(not_implemented),
                 "HTTP/1.1 501 Not Implemented\r\n"
@@ -263,8 +293,9 @@ void *handle_client(void *arg) {
             printf("%s\n", not_implemented);
         }
 
-        close(client_fd);
+        close(client_fd);                                                  // Cerrar el socket del cliente
 
+        // Decrementar el contador de clientes activos
         pthread_mutex_lock(&lock);
         active_clients--;
         pthread_mutex_unlock(&lock);
@@ -274,6 +305,7 @@ void *handle_client(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
+    // Procesar argumentos de línea de comandos
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-n") == 0 && i + 1 < argc) {
             num_threads = atoi(argv[++i]);
@@ -284,6 +316,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Crear el socket del servidor
     struct sockaddr_in server_addr;
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == 0) {
@@ -291,32 +324,39 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // Configurar la dirección del servidor
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port);
 
+    // Bindear el socket a la dirección y puerto
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
 
+    // Escuchar conexiones entrantes
     if (listen(server_fd, 10) < 0) {
         perror("listen failed");
         exit(EXIT_FAILURE);
     }
 
+    // Mostrar información del servidor
     printf("Server listening on port %d with %d threads...\n", port, num_threads);
     printf("Serving files from: %s\n", root_dir);
 
+    // Crear hilos para manejar las solicitudes de los clientes
     pthread_t threads[num_threads];
     for (int i = 0; i < num_threads; i++) {
         pthread_create(&threads[i], NULL, handle_client, NULL);
     }
 
+    // Esperar a que los hilos terminen
     for (int i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
     }
 
+    // Cerrar el socket del servidor
     close(server_fd);
     return 0;
 }
